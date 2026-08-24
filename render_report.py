@@ -13,6 +13,8 @@ versions, and what the app maker chose to accept and why. Numbers come only from
 nothing on the page is hand-typed except the triage table (scripts/security/triage.md), which is
 labelled as the maker's own triage.
 """
+from __future__ import annotations
+
 import argparse
 import datetime
 import json
@@ -29,6 +31,25 @@ def tool_version(cmd: list[str]) -> str:
         return "unavailable"
 
 
+def mobsf_section(mobsf: dict | None) -> str:
+    if not mobsf:
+        return ""
+    return f"""## Binary scan of the built app (per release, not per push)
+
+The scans above read source; [MobSF](https://github.com/MobSF/Mobile-Security-Framework-MobSF)
+({mobsf["mobsf_version"]}) inspects the built binary — permissions, exported components, storage
+and network flags — so it catches what the build itself introduces. Latest scan: {mobsf["date"]},
+`{mobsf["artifact"]}` at commit `{mobsf["commit"]}`.
+
+- High-severity findings: **{mobsf["high_findings"]}**
+- Findings in RiderNav's own code: **{mobsf["app_code_findings"]}**
+- Warnings: {mobsf["warnings"]} (MobSF security score {mobsf["security_score"]}/100)
+
+{mobsf["note"]}
+
+"""
+
+
 def main() -> None:
     p = argparse.ArgumentParser()
     p.add_argument("--osv", required=True)
@@ -40,6 +61,8 @@ def main() -> None:
 
     osv = json.loads(Path(args.osv).read_text())
     semgrep = json.loads(Path(args.semgrep).read_text())
+    mobsf_file = HERE / "mobsf-latest.json"
+    mobsf = json.loads(mobsf_file.read_text()) if mobsf_file.exists() else None
     semgrep_findings = semgrep.get("results", [])
     triage = (HERE / "triage.md").read_text()
     # Strip the HTML comment header from the embedded triage table.
@@ -81,7 +104,7 @@ _Last scan: {today} · commit `{args.commit[:12]}` of the private repository `ch
   [OSV](https://osv.dev) vulnerability database on every push and weekly, so newly published CVEs
   against unchanged code still surface.
 
-## Accepted findings (maker's triage)
+{mobsf_section(mobsf)}## Accepted findings (maker's triage)
 
 {triage_table}
 
